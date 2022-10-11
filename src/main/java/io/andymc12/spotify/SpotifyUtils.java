@@ -34,6 +34,7 @@ public class SpotifyUtils {
             return getPlaylist(playlistId).toCompletableFuture().get();
         } catch (InterruptedException | ExecutionException e) {
             LOG.log(Level.WARNING, "Failed to lookup playlist", e);
+            e.printStackTrace();
             return new Playlist();
         }
     }
