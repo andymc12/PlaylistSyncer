@@ -42,13 +42,26 @@ public class Playlist {
     }
 
     public String toText() {
+        return toText(true);
+    }
+
+    public String toText(boolean includeHeader) {
+        StringBuilder sb = new StringBuilder();
+        if (includeHeader) {
+            sb.append(this.toString());
+        }
+        songs.stream().forEach(s -> {
+            sb.append(s).append(System.lineSeparator());
+        });
+        return sb.toString();
+    }
+
+    @Override
+    public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append(id).append(System.lineSeparator());
         sb.append(name).append(System.lineSeparator());
         sb.append(description).append(System.lineSeparator());
-        songs.stream().forEach(s -> {
-            sb.append(s).append(System.lineSeparator());
-        });
         return sb.toString();
     }
 }

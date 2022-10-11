@@ -8,13 +8,14 @@
   <script type="text/javascript">
     $(document).ready(function(){
         console.log("onload");
+        $("img").hide();
         $('*[id*=createForm]').on("submit", function(event){
             event.preventDefault();
 
             var formValues= $(this).serialize();
             console.log("submitting: " + formValues);
 
-            $.post("/sync/playlists", formValues, function(data){
+            $.post("/rest/sync/playlists", formValues, function(data){
                 // Display the returned data in console instead of browser
                 //$("#result").html(data);
                 console.log("created playlist " + data);
@@ -25,11 +26,15 @@
 
             var formValues= $(this).serialize();
             console.log("submitting: " + formValues);
+            var id = $(this).children("#spotifyListId").val();
+            console.log("id = " + id);
+            $("#" + id).show();
 
-            $.post("/sync/refresh", formValues, function(data){
+            $.post("/rest/sync/refresh", formValues, function(data){
                 // Display the returned data in console instead of browser
                 //$("#result").html(data);
                 console.log("updated playlist " + data);
+                $("#" + id).hide();
             });
         });
     });
@@ -44,7 +49,10 @@
       Enable Duplicate?: <input id="newPlaylistEnableDuplicate" type="checkbox" name="allowDuplicate" value="true"/>
       <input id="submit" type="submit" value="Sync"/>
     </form>
+  </div>
+  <div>
     <a href="createFromTextForm.jsp">Create From Text</a>
+    <a href="songlist.jsp">View Songs</a>
   </div>
   <div>
       <table id="p1" style="width:95%" border="1" frame="void" rules="rows">
@@ -75,6 +83,7 @@ for (io.andymc12.playlistsync.SyncdPlaylist spl : syncer.allSyncdPlaylists()) {
                 <input id="submit" type="submit" value="Update"/>
               </form>
             </td>
+            <td><img id="<%= spotify.getId() %>" src="hula-hooping.gif" /></td>
         </tr>
 <%
 }

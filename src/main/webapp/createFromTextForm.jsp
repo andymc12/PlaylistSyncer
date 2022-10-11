@@ -12,7 +12,7 @@
                   var formValues= $(this).serialize();
                   console.log("submitting: " + formValues);
       
-                  $.post("/sync/playlistFromForm", formValues, function(data){
+                  $.post("/rest/sync/playlistFromForm", formValues, function(data){
                       // Display the returned data in console instead of browser
                       //$("#result").html(data);
                       console.log("created playlist " + data);
