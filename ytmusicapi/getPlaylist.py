@@ -25,7 +25,11 @@ playlist_id = argv[1]
 ytmusic = YTMusic(auth="headers_auth.json")
 #ytmusic = YTMusic()
 
-playlist = ytmusic.get_playlist(playlist_id)
+try:
+  playlist = ytmusic.get_playlist(playlist_id)
+except:
+  print("No playlist found with id: " + playlist_id)
+  exit(1)
 
 if playlist == None:
   print("No playlist found with id: " + playlist_id)

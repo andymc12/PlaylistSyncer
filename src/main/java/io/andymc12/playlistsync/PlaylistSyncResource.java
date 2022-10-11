@@ -46,11 +46,15 @@ public class PlaylistSyncResource {
             p.load(new FileInputStream(
                 new File(SpotifyplaylistRestApplication.APP_ROOT_DIRECTORY, "ytmusicapi/syncdPlaylists.properties")));
             p.forEach((k, v) -> {
-                Playlist spotifyPlaylist = SpotifyUtils.getPlaylistSync((String) k);
-                LOG.info("Loaded spotify list: " + spotifyPlaylist);
-                Playlist ytmusicPlaylist = YTMusicUtils.getPlaylist((String)v);
-                LOG.info("Loaded ytm list: " + ytmusicPlaylist);
-                playlists.add(new SyncdPlaylist(spotifyPlaylist, ytmusicPlaylist));
+                try {
+                    Playlist spotifyPlaylist = SpotifyUtils.getPlaylistSync((String) k);
+                    LOG.info("Loaded spotify list: " + spotifyPlaylist);
+                    Playlist ytmusicPlaylist = YTMusicUtils.getPlaylist((String) v);
+                    LOG.info("Loaded ytm list: " + ytmusicPlaylist);
+                    playlists.add(new SyncdPlaylist(spotifyPlaylist, ytmusicPlaylist));
+                } catch (Exception e) {
+                    LOG.log(Level.SEVERE, "Failed to load playlist properties", e);
+                }
             });
         } catch (Exception ex) {
             LOG.log(Level.SEVERE, "Failed to load initial playlist properties", ex);

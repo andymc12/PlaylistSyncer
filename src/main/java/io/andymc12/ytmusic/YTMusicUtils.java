@@ -125,7 +125,7 @@ public class YTMusicUtils {
             executor.submit(streamGobbler);
             int exitCode = process.waitFor();
             if (exitCode != 0) {
-                System.out.println("Error running script:");
+                System.out.println("Error running script (" + scriptName + "):");
                 lines.forEach(System.out::println);
                 throw new InternalServerErrorException();
             }
