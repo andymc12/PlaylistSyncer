@@ -24,6 +24,7 @@ import javax.ws.rs.InternalServerErrorException;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
+import javax.ws.rs.QueryParam;
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.MediaType;
 
@@ -148,6 +149,19 @@ public class PlaylistSyncResource {
         list.setYtmusicPlaylist(YTMusicUtils.addSongsToPlaylist(ytmPlaylist, spotifyPlaylist.getSongs()));
 
         return list;
+    }
+
+    @GET
+    @Path("playlistForm")
+    public Playlist getPlaylistForm(@FormParam("playlistId") String playlistId, @FormParam("service") Service service) {
+        System.out.println("ANDY: playlistId: " + playlistId + " service: " + service);
+        return getPlaylist(playlistId, service);
+    }
+
+    @GET
+    @Path("playlist")
+    public Playlist getPlaylist(@QueryParam("playlistId") String playlistId, @QueryParam("service") Service service) {
+        return Service.playlist(service).apply(playlistId);
     }
 
     Optional<SyncdPlaylist> getExistingPlaylist(String spotifyListId) {
