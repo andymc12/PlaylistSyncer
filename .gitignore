@@ -12,4 +12,5 @@ buildNumber.properties
 config.properties
 ytmusicapi/headers_auth*
 ytmusicapi/syncdPlaylists*
+**/.DS_Store
 
