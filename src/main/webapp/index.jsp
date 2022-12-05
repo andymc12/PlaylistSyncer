@@ -83,6 +83,7 @@ for (io.andymc12.playlistsync.SyncdPlaylist spl : syncer.allSyncdPlaylists()) {
                 <input id="submit" type="submit" value="Update"/>
               </form>
             </td>
+            <td><a href="updateFromTextForm.jsp?playlistId=<%= spotify.getId() %>">Add songs</a></td>
             <td><img id="<%= spotify.getId() %>" src="hula-hooping.gif" /></td>
         </tr>
 <%
