@@ -1,11 +1,14 @@
 package io.andymc12.playlistsync;
 
+import static java.util.stream.Collectors.toList;
+
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
@@ -92,7 +95,7 @@ public class PlaylistSyncResource {
 
         // check for duplicates:
         boolean dupe = "true".equals(dupeStr);
-        Optional<SyncdPlaylist> existing = getExistingPlaylist(spotifyListId);
+        Optional<SyncdPlaylist> existing = getExistingPlaylistOptional(spotifyListId);
         if (!dupe && existing.isPresent()) {
             LOG.warning("Ignoring attempt to create duplicate SyncdPlaylist (spotify id: " + spotifyListId + ")");
             return existing.get();
@@ -113,22 +116,66 @@ public class PlaylistSyncResource {
                                            @FormParam("description") String description,
                                            @FormParam("songs") String songListString) {
 
-        List<String> songs = Arrays.asList(songListString.split("\n"));
+        List<String> songs = splitSongsFromString(songListString);
         Playlist ytmusicPlaylist = YTMusicUtils.createPlaylistFromText(name, description, songs);
         return ytmusicPlaylist != null;
     }
 
     @POST
+    @Path("/addSongsToPlaylist")
+    public SyncdPlaylist addSongsToPlayList(@FormParam("spotifyListId") String spotifyListId,
+                                            @FormParam("songs") String songListString,
+                                            @FormParam("backup") String backup) {
+
+        
+        SyncdPlaylist list = getExistingPlaylist(spotifyListId);
+        Playlist ytmPlaylist = list.getYtmusicPlaylist();
+        String prefix = "BACKUP " + new SimpleDateFormat("yyyy-MM-dd").format(new Date()) + ": ";
+        Playlist ytmBackupPlaylist = YTMusicUtils.createPlaylist(prefix + ytmPlaylist.getName(),
+                                                                 ytmPlaylist.getDescription(),
+                                                                 Collections.emptyList());
+        LOG.info("Creating Backup of Playlist: " + ytmPlaylist.getName() + " " + ytmPlaylist.getSongs());
+        YTMusicUtils.addSongIDsToPlaylist(ytmBackupPlaylist, ytmPlaylist.getSongs().stream().map(Song::getId).collect(toList()));
+        ytmBackupPlaylist = waitForBackup(ytmPlaylist, ytmBackupPlaylist.getId());
+        if (ytmBackupPlaylist == null) {
+            throw new InternalServerErrorException("Could not confirm that backup completed");
+        }
+        LOG.info("Backup Playlist: " + ytmBackupPlaylist.getName() + " " + ytmBackupPlaylist.getSongs());
+        YTMusicUtils.clearPlaylist(ytmPlaylist.getId());
+        List<String> songs = splitSongsFromString(songListString);
+        YTMusicUtils.addSongStringsToPlaylist(ytmPlaylist, songs);
+        YTMusicUtils.addSongIDsToPlaylist(ytmPlaylist, ytmBackupPlaylist.getSongs().stream().map(Song::getId).collect(toList()));
+
+        if (!"true".equals(backup)) {
+            YTMusicUtils.clearPlaylist(ytmBackupPlaylist.getId());
+        }
+
+        return list;
+    }
+
+    private List<String> splitSongsFromString(String songListString) {
+        return Arrays.asList(songListString.split("\n"));
+    }
+
+    private Playlist waitForBackup(Playlist original, String backupId) {
+        int MAX_TRIES = 60;
+        long WAIT_TIME = 1000; // 1 sec
+        for (int i=0; i< MAX_TRIES; i++) {
+            Playlist backup = YTMusicUtils.getPlaylist(backupId);
+            if (backup.getSongs() != null && backup.getSongs().size() == original.getSongs().size()) {
+                return backup;
+            }
+            try { Thread.sleep(WAIT_TIME); } catch (Exception ex) {}
+        }
+        return null;
+    }
+    
+    @POST
     @Path("/refresh")
     public SyncdPlaylist refreshPlaylist(@FormParam("spotifyListId") String spotifyListId,
                                          @FormParam("backup") String backup) {
 
-        Optional<SyncdPlaylist> existing = getExistingPlaylist(spotifyListId);
-        if (existing.isEmpty()) {
-            throw new WebApplicationException("No record of a sync'd spotify list with ID: " + spotifyListId, 404);
-        }
-
-        SyncdPlaylist list = existing.get();
+        SyncdPlaylist list = getExistingPlaylist(spotifyListId);
         Playlist ytmPlaylist = list.getYtmusicPlaylist();
 
         // backup existing list if requested (default)
@@ -164,12 +211,20 @@ public class PlaylistSyncResource {
         return Service.playlist(service).apply(playlistId);
     }
 
-    Optional<SyncdPlaylist> getExistingPlaylist(String spotifyListId) {
+    Optional<SyncdPlaylist> getExistingPlaylistOptional(String spotifyListId) {
         for (SyncdPlaylist existingSync : playlists) {
             if (existingSync.getSpotifyPlaylist().getId().equals(spotifyListId)) {
                 return Optional.of(existingSync);
             }
         }
         return Optional.empty();
+    }
+
+    private SyncdPlaylist getExistingPlaylist(String spotifyListId) {
+        Optional<SyncdPlaylist> existing = getExistingPlaylistOptional(spotifyListId);
+        if (existing.isEmpty()) {
+            throw new WebApplicationException("No record of a sync'd spotify list with ID: " + spotifyListId, 404);
+        }
+        return existing.get();
     }
 }

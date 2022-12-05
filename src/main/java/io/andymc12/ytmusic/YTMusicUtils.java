@@ -1,11 +1,14 @@
 package io.andymc12.ytmusic;
 
+import static java.util.stream.Collectors.toList;
+
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -33,7 +36,7 @@ public class YTMusicUtils {
     }
 
     public static Playlist createPlaylist(String name, String description, List<Song> songs) {
-        return createPlaylistFromText(name, description, songs.stream().map(Song::toString).collect(Collectors.toList()));
+        return createPlaylistFromText(name, description, songs.stream().map(Song::toString).collect(toList()));
     }
 
     public static Playlist createPlaylistFromText(String name, String description, List<String> songs) {
@@ -57,16 +60,28 @@ public class YTMusicUtils {
     }
 
     public static Playlist addSongsToPlaylist(Playlist list, List<Song> songs) {
+        return addSongStringsToPlaylist(list, songs.stream().map(s -> 
+            s.getSongTitle() + " " + s.getArtists().stream().collect(Collectors.joining(" "))).collect(toList()));
+    }
+
+    public static Playlist addSongStringsToPlaylist(Playlist list, List<String> songs) {
+        return addSongsToPlaylist("addSongsToPlaylist.py", list, songs);
+    }
+
+    public static Playlist addSongIDsToPlaylist(Playlist list, List<String> songIds) {
+        return addSongsToPlaylist("addSongIDsToPlaylist.py", list, songIds);
+    }
+
+    private static Playlist addSongsToPlaylist(String scriptName, Playlist list, List<String> songs) {
         String[] parms = new String[songs.size() + 1];
         parms[0] = list.getId();
         StringBuilder sb = new StringBuilder(parms[0]);
         for (int i = 1; i < parms.length; i++) {
-            Song s = songs.get(i - 1);
-            parms[i] = s.getSongTitle() + " " + s.getArtists().stream().collect(Collectors.joining(" "));
+            parms[i] = songs.get(i - 1);
             sb.append(" \"").append(parms[i]).append("\"");
         }
-        LOG.finest("adding songs: " + sb.toString());
-        runScript("addSongsToPlaylist.py", parms);
+        LOG.info("adding songs: " + sb.toString());
+        runScript(scriptName, parms);
         return getPlaylist(parms[0]);
     }
 
@@ -109,6 +124,7 @@ public class YTMusicUtils {
     }
 
     static List<String> runScript(String scriptName, String... params) {
+        LOG.info("runScript " + scriptName + " " + Arrays.asList(params));
         try {
             List<String> lines = new ArrayList<>();
             ProcessBuilder builder = new ProcessBuilder();
