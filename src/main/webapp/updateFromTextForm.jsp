@@ -23,7 +23,8 @@
     </head>
     <body>
         <form id="createForm" onsubmit="return false;">
-            <input type="hidden" id="spotifyListId" name="spotifyListId" value="<%= request.getParameter("playlistId") %>"/> 
+            <input type="hidden" id="spotifyListId" name="spotifyListId" value="<%= request.getParameter("playlistId") %>"/>
+            <input type="hidden" id="operation" name="operation" value="<%= request.getParameter("operation") %>"/>
             <div>
                 Keep backup?: <input id="backup" type="checkbox" name="backup" value="true"/>
             </div>

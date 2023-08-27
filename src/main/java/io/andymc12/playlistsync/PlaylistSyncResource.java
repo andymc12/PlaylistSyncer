@@ -1,6 +1,9 @@
 package io.andymc12.playlistsync;
 
 import static java.util.stream.Collectors.toList;
+import static io.andymc12.playlistsync.Operation.*;
+import static io.andymc12.playlistsync.SpotifyplaylistRestApplication.APP_ROOT_DIRECTORY;
+import static io.andymc12.playlistsync.SpotifyplaylistRestApplication.PYTHON_LOCATION;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -39,16 +42,19 @@ import io.andymc12.ytmusic.YTMusicUtils;
 @Named("playlistSync")
 @Produces({ MediaType.TEXT_PLAIN, MediaType.APPLICATION_JSON })
 public class PlaylistSyncResource {
-    Logger LOG = Logger.getLogger(PlaylistSyncResource.class.getName());
+    private static final Logger LOG = Logger.getLogger(PlaylistSyncResource.class.getName());
+    private static final String LS = System.lineSeparator();
 
     private final List<SyncdPlaylist> playlists = new ArrayList<>();
 
     @PostConstruct
     public void init() {
         try {
+            LOG.info(() -> "app.root.directory = " + APP_ROOT_DIRECTORY + LS +
+                           "python.location = " + PYTHON_LOCATION);
             Properties p = new Properties();
             p.load(new FileInputStream(
-                new File(SpotifyplaylistRestApplication.APP_ROOT_DIRECTORY, "ytmusicapi/syncdPlaylists.properties")));
+                new File(APP_ROOT_DIRECTORY, "ytmusicapi/syncdPlaylists.properties")));
             p.forEach((k, v) -> {
                 try {
                     Playlist spotifyPlaylist = SpotifyUtils.getPlaylistSync((String) k);
@@ -74,7 +80,7 @@ public class PlaylistSyncResource {
                 p.setProperty(syncdPlaylist.getSpotifyPlaylist().getId(), syncdPlaylist.getYtmusicPlaylist().getId());
             });
             p.store(new FileOutputStream(
-                new File(SpotifyplaylistRestApplication.APP_ROOT_DIRECTORY, "ytmusicapi/syncdPlaylists.properties")), "");
+                new File(APP_ROOT_DIRECTORY, "ytmusicapi/syncdPlaylists.properties")), "");
         } catch (Exception ex) {
             LOG.severe("Failed to load initial playlist properties");
         }
@@ -125,9 +131,12 @@ public class PlaylistSyncResource {
     @Path("/addSongsToPlaylist")
     public SyncdPlaylist addSongsToPlayList(@FormParam("spotifyListId") String spotifyListId,
                                             @FormParam("songs") String songListString,
-                                            @FormParam("backup") String backup) {
+                                            @FormParam("backup") String backup,
+                                            @FormParam("operation") @DefaultValue("PREPEND") Operation operation) {
 
-        
+        LOG.info(() -> "addSongsToPlayList spotifyListId=" + spotifyListId + " backup=" + backup +
+            " operation = " + operation + " songs: " + songListString);
+
         SyncdPlaylist list = getExistingPlaylist(spotifyListId);
         Playlist ytmPlaylist = list.getYtmusicPlaylist();
         String prefix = "BACKUP " + new SimpleDateFormat("yyyy-MM-dd").format(new Date()) + ": ";
@@ -141,10 +150,31 @@ public class PlaylistSyncResource {
             throw new InternalServerErrorException("Could not confirm that backup completed");
         }
         LOG.info("Backup Playlist: " + ytmBackupPlaylist.getName() + " " + ytmBackupPlaylist.getSongs());
-        YTMusicUtils.clearPlaylist(ytmPlaylist.getId());
+
+        if (!APPEND.equals(operation)) {
+            YTMusicUtils.clearPlaylist(ytmPlaylist.getId());
+        }
+        
         List<String> songs = splitSongsFromString(songListString);
-        YTMusicUtils.addSongStringsToPlaylist(ytmPlaylist, songs);
-        YTMusicUtils.addSongIDsToPlaylist(ytmPlaylist, ytmBackupPlaylist.getSongs().stream().map(Song::getId).collect(toList()));
+        
+        Playlist updatedPlaylist = YTMusicUtils.addSongStringsToPlaylist(ytmPlaylist, songs);
+
+        if (PREPEND.equals(operation)) {
+            updatedPlaylist = YTMusicUtils.addSongIDsToPlaylist(ytmPlaylist, ytmBackupPlaylist.getSongs().stream().map(Song::getId).collect(toList()));
+        }
+
+        int expectedNumOfSongs;
+        if (REPLACE.equals(operation)) {
+            expectedNumOfSongs = songs.size();
+        } else {
+            expectedNumOfSongs = songs.size() + ytmPlaylist.getSongs().size();
+        }
+
+        if (updatedPlaylist.getSongs().size() != expectedNumOfSongs) {
+            LOG.severe("Unexpected number of songs in updated playlist - expected " + expectedNumOfSongs + 
+                " but only found " + updatedPlaylist.getSongs().size() + " - will not delete backup.");
+            return list;
+        }
 
         if (!"true".equals(backup)) {
             YTMusicUtils.clearPlaylist(ytmBackupPlaylist.getId());
@@ -161,7 +191,12 @@ public class PlaylistSyncResource {
         int MAX_TRIES = 60;
         long WAIT_TIME = 1000; // 1 sec
         for (int i=0; i< MAX_TRIES; i++) {
-            Playlist backup = YTMusicUtils.getPlaylist(backupId);
+            Playlist backup;
+            try {
+                backup = YTMusicUtils.getPlaylist(backupId);
+            } catch (InternalServerErrorException isee) {
+                continue;
+            }
             if (backup.getSongs() != null && backup.getSongs().size() == original.getSongs().size()) {
                 return backup;
             }

@@ -30,9 +30,22 @@ public class YTMusicUtils {
     private static ExecutorService executor = Executors.newFixedThreadPool(4);
 
     public static Playlist getPlaylist(String playlistId) {
-        List<String> lines = runScript("getPlaylist.py", playlistId);
-        LOG.finest(() -> lines.stream().collect(Collectors.joining(System.lineSeparator())));
-        return playlistFromText(lines);
+        return getPlaylist(playlistId, 1);
+    }
+    public static Playlist getPlaylist(String playlistId, int numRetries) {
+        RuntimeException initialException = null;
+        for (int i=0; i<numRetries; i++) {
+            try {
+                List<String> lines = runScript("getPlaylist.py", playlistId);
+                LOG.finest(() -> lines.stream().collect(Collectors.joining(System.lineSeparator())));
+                return playlistFromText(lines);
+            } catch (RuntimeException re) {
+                if (initialException == null) {
+                    initialException = re;
+                }
+            }
+        }
+        throw initialException;
     }
 
     public static Playlist createPlaylist(String name, String description, List<Song> songs) {
@@ -49,7 +62,7 @@ public class YTMusicUtils {
         List<String> lines = runScript("createPlaylist.py", parms);
         if (lines.size() > 0) {
             String ytmPlaylistId = lines.get(0);
-            return getPlaylist(ytmPlaylistId);
+            return getPlaylist(ytmPlaylistId, 5);
         }
         throw new InternalServerErrorException();
     }
@@ -73,6 +86,10 @@ public class YTMusicUtils {
     }
 
     private static Playlist addSongsToPlaylist(String scriptName, Playlist list, List<String> songs) {
+        if (songs == null || songs.isEmpty()) {
+            LOG.warning("No songs to add to list " + list.getId());
+            return list;
+        }
         String[] parms = new String[songs.size() + 1];
         parms[0] = list.getId();
         StringBuilder sb = new StringBuilder(parms[0]);
