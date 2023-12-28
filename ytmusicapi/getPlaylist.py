@@ -22,7 +22,7 @@ from ytmusicapi import YTMusic
 
 playlist_id = argv[1]
 
-ytmusic = YTMusic(auth="headers_auth.json")
+ytmusic = YTMusic("oauth.json")
 #ytmusic = YTMusic()
 
 try:

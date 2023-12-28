@@ -14,3 +14,5 @@ ytmusicapi/headers_auth*
 ytmusicapi/syncdPlaylists*
 **/.DS_Store
 
+.vscode/*
+ytmusicapi/oauth.json*

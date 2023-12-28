@@ -7,11 +7,10 @@
   <version>1.0-SNAPSHOT</version>
   <packaging>war</packaging>
   <properties>
-    <openliberty.maven.version>3.2</openliberty.maven.version>
+    <openliberty.maven.version>3.9</openliberty.maven.version>
     <maven.compiler.target>11</maven.compiler.target>
     <failOnMissingWebXml>false</failOnMissingWebXml>
     <maven.compiler.source>11</maven.compiler.source>
-    <openliberty.version>[19.0.0.9,)</openliberty.version>
     <final.name>spotify-playlist</final.name>
   </properties>
   <dependencies>
@@ -42,7 +41,7 @@
           <plugin>
             <groupId>org.codehaus.mojo</groupId>
             <artifactId>properties-maven-plugin</artifactId>
-            <version>1.0.0</version>
+            <version>1.2.0</version>
             <executions>
               <execution>
                 <phase>initialize</phase>
@@ -56,7 +55,7 @@
                 </configuration>
               </execution>
             </executions>
-          </plugin>
+          </plugin> 
           <plugin>
             <groupId>io.openliberty.tools</groupId>
             <artifactId>liberty-maven-plugin</artifactId>

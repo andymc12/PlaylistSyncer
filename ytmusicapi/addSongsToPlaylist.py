@@ -5,7 +5,7 @@
 from ytmusicapi import YTMusic
 from sys import argv
 
-ytmusic = YTMusic(auth="headers_auth.json")
+ytmusic = YTMusic("oauth.json")
 
 playlistId = argv[1]
 
@@ -24,4 +24,13 @@ for line in argv[2:]:
 #print("search results:")
 for resultx in search_results:
   #print("adding to playlist: " + resultx)
-  ytmusic.add_playlist_items(playlistId, [resultx['videoId']])
+  try:
+    status, videoDetails = ytmusic.add_playlist_items(playlistId, [resultx['videoId']])
+    print("add status: " + status)
+  except Exception as ex:
+    print("Caught exception adding ", resultx, " to playlist ", playlistId)
+    print(type(ex))
+    for arg in ex.args:
+      print(arg)
+    raise ex
+  

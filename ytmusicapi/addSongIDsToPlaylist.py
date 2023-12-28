@@ -5,7 +5,7 @@
 from ytmusicapi import YTMusic
 from sys import argv
 
-ytmusic = YTMusic(auth="headers_auth.json")
+ytmusic = YTMusic("oauth.json")
 
 playlistId = argv[1]
 
