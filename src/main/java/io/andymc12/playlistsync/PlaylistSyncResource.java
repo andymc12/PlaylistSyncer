@@ -18,6 +18,7 @@ import java.util.Optional;
 import java.util.Properties;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
 
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
@@ -29,6 +30,7 @@ import javax.ws.rs.GET;
 import javax.ws.rs.InternalServerErrorException;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
+import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
 import javax.ws.rs.QueryParam;
 import javax.ws.rs.WebApplicationException;
@@ -92,6 +94,14 @@ public class PlaylistSyncResource {
         return playlists;
     }
 
+    @GET
+    @Produces("text/html")
+    @Path("/songs/{spotifyPlayListId}")
+    public String getSongsFromSpotifyPlaylist(@PathParam("spotifyPlayListId") String spotifyListId) {
+        Playlist spotifyPlaylist = SpotifyUtils.getPlaylistSync(spotifyListId);
+        return "<html><p>" + spotifyPlaylist.getSongs().stream().map(Song::toString).collect(Collectors.joining ("<br>")) + "</p></html>";
+    }
+
     @POST
     @Path("/playlists")
     public SyncdPlaylist createNewPlaylist(@FormParam("name") String name,
@@ -139,17 +149,20 @@ public class PlaylistSyncResource {
 
         SyncdPlaylist list = getExistingPlaylist(spotifyListId);
         Playlist ytmPlaylist = list.getYtmusicPlaylist();
-        String prefix = "BACKUP " + new SimpleDateFormat("yyyy-MM-dd").format(new Date()) + ": ";
-        Playlist ytmBackupPlaylist = YTMusicUtils.createPlaylist(prefix + ytmPlaylist.getName(),
+        Playlist ytmBackupPlaylist = null;
+        if ("true".equalsIgnoreCase(backup) || PREPEND.equals(operation)) {
+            String prefix = "BACKUP " + new SimpleDateFormat("yyyy-MM-dd").format(new Date()) + ": ";
+            ytmBackupPlaylist = YTMusicUtils.createPlaylist(prefix + ytmPlaylist.getName(),
                                                                  ytmPlaylist.getDescription(),
                                                                  Collections.emptyList());
-        LOG.info("Creating Backup of Playlist: " + ytmPlaylist.getName() + " " + ytmPlaylist.getSongs());
-        YTMusicUtils.addSongIDsToPlaylist(ytmBackupPlaylist, ytmPlaylist.getSongs().stream().map(Song::getId).collect(toList()));
-        ytmBackupPlaylist = waitForBackup(ytmPlaylist, ytmBackupPlaylist.getId());
-        if (ytmBackupPlaylist == null) {
-            throw new InternalServerErrorException("Could not confirm that backup completed");
+            LOG.info("Creating Backup of Playlist: " + ytmPlaylist.getName() + " " + ytmPlaylist.getSongs());
+            YTMusicUtils.addSongIDsToPlaylist(ytmBackupPlaylist, ytmPlaylist.getSongs().stream().map(Song::getId).collect(toList()));
+            ytmBackupPlaylist = waitForBackup(ytmPlaylist, ytmBackupPlaylist.getId());
+            if (ytmBackupPlaylist == null) {
+                throw new InternalServerErrorException("Could not confirm that backup completed");
+            }
+            LOG.info("Backup Playlist: " + ytmBackupPlaylist.getName() + " " + ytmBackupPlaylist.getSongs());
         }
-        LOG.info("Backup Playlist: " + ytmBackupPlaylist.getName() + " " + ytmBackupPlaylist.getSongs());
 
         if (!APPEND.equals(operation)) {
             YTMusicUtils.clearPlaylist(ytmPlaylist.getId());
@@ -221,15 +234,25 @@ public class PlaylistSyncResource {
                                         ytmPlaylist.getSongs());
         }
 
-        // clear existing list
-        if (!YTMusicUtils.clearPlaylist(ytmPlaylist.getId())) {
-            throw new InternalServerErrorException("Failed to clear existing playlist, " + ytmPlaylist.getId());
-        };
-
         Playlist spotifyPlaylist = SpotifyUtils.getPlaylistSync(spotifyListId);
-        list.setSpotifyPlaylist(spotifyPlaylist);
-        list.setYtmusicPlaylist(YTMusicUtils.addSongsToPlaylist(ytmPlaylist, spotifyPlaylist.getSongs()));
 
+        int retries = 3;
+        while (retries > 0) {
+            try {
+                // clear existing list
+                if (!YTMusicUtils.clearPlaylist(ytmPlaylist.getId())) {
+                    throw new InternalServerErrorException("Failed to clear existing playlist, " + ytmPlaylist.getId());
+                }
+
+                list.setSpotifyPlaylist(spotifyPlaylist);
+                list.setYtmusicPlaylist(YTMusicUtils.addSongsToPlaylist(ytmPlaylist, spotifyPlaylist.getSongs()));
+                retries = 0;
+            } catch (Exception ex) {
+                String msg = retries-- > 0 ? "Caught exception - retrying" : "Caught exception - no more retries";
+                LOG.warning(msg);
+                ex.printStackTrace();
+            }
+        }
         return list;
     }
 
@@ -248,7 +271,7 @@ public class PlaylistSyncResource {
 
     Optional<SyncdPlaylist> getExistingPlaylistOptional(String spotifyListId) {
         for (SyncdPlaylist existingSync : playlists) {
-            if (existingSync.getSpotifyPlaylist().getId().equals(spotifyListId)) {
+            if (existingSync != null && existingSync.getSpotifyPlaylist().getId().equals(spotifyListId)) {
                 return Optional.of(existingSync);
             }
         }

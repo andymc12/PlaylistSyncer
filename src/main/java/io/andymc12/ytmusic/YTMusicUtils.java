@@ -1,5 +1,6 @@
 package io.andymc12.ytmusic;
 
+import static java.lang.Math.min;
 import static java.util.stream.Collectors.toList;
 
 import java.io.BufferedReader;
@@ -86,20 +87,30 @@ public class YTMusicUtils {
     }
 
     private static Playlist addSongsToPlaylist(String scriptName, Playlist list, List<String> songs) {
+        final String listId = list.getId();
         if (songs == null || songs.isEmpty()) {
-            LOG.warning("No songs to add to list " + list.getId());
+            LOG.warning("No songs to add to list " + listId);
             return list;
         }
-        String[] parms = new String[songs.size() + 1];
-        parms[0] = list.getId();
-        StringBuilder sb = new StringBuilder(parms[0]);
-        for (int i = 1; i < parms.length; i++) {
-            parms[i] = songs.get(i - 1);
-            sb.append(" \"").append(parms[i]).append("\"");
+        // NEW CODE:
+        final int songsPerScriptInvoke = 25;
+        final int totalSongSize = songs.size();
+        int songsAdded = 0;
+        while (songsAdded < totalSongSize) {
+            int songsToAdd = min(totalSongSize - songsAdded, songsPerScriptInvoke);
+            String[] parms = new String[songsToAdd + 1];
+            parms[0] = listId;
+
+            StringBuilder sb = new StringBuilder(parms[0]);
+            for (int i = 1; i < parms.length; i++) {
+                parms[i] = songs.get(songsAdded + i - 1);
+                sb.append(" \"").append(parms[i]).append("\"");
+            }
+            LOG.info("adding songs: " + sb.toString());
+            runScript(scriptName, parms);
+            songsAdded += songsToAdd;
         }
-        LOG.info("adding songs: " + sb.toString());
-        runScript(scriptName, parms);
-        return getPlaylist(parms[0]);
+        return getPlaylist(listId);
     }
 
     static Playlist playlistFromText(List<String> text) {
