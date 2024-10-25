@@ -8,6 +8,7 @@ public class Song {
     private String id;
     private String songTitle;
     private List<String> artists = new ArrayList<String>();
+    private String separator = " "; // for separating title from artist in #toString()
 
     public String getId() {
         return id;
@@ -33,8 +34,16 @@ public class Song {
         this.artists = artists;
     }
 
+    public String getSeparator() {
+        return separator;
+    }
+
+    public void setSeparator(String separator) {
+        this.separator = separator;
+    }
+
     @Override
     public String toString() {
-        return songTitle + "  " + artists.stream().collect(Collectors.joining(", "));
+        return songTitle + separator + artists.stream().collect(Collectors.joining(", "));
     }
 }

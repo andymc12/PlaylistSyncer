@@ -48,6 +48,7 @@ public class PlaylistSyncResource {
     private static final String LS = System.lineSeparator();
 
     private final List<SyncdPlaylist> playlists = new ArrayList<>();
+    private boolean saveOnExit = true;
 
     @PostConstruct
     public void init() {
@@ -58,33 +59,45 @@ public class PlaylistSyncResource {
             p.load(new FileInputStream(
                 new File(APP_ROOT_DIRECTORY, "ytmusicapi/syncdPlaylists.properties")));
             p.forEach((k, v) -> {
+                Playlist spotifyPlaylist, ytmusicPlaylist;
                 try {
-                    Playlist spotifyPlaylist = SpotifyUtils.getPlaylistSync((String) k);
+                    spotifyPlaylist = SpotifyUtils.getPlaylistSync((String) k);
                     LOG.info("Loaded spotify list: " + spotifyPlaylist);
-                    Playlist ytmusicPlaylist = YTMusicUtils.getPlaylist((String) v);
+                } catch (Exception e) {
+                    LOG.log(Level.SEVERE, "Failed to load Spotify playlist properties: " + k, e);
+                    saveOnExit = false;
+                    return;
+                }
+                try {
+                    ytmusicPlaylist = YTMusicUtils.getPlaylist((String) v);
                     LOG.info("Loaded ytm list: " + ytmusicPlaylist);
                     playlists.add(new SyncdPlaylist(spotifyPlaylist, ytmusicPlaylist));
                 } catch (Exception e) {
-                    LOG.log(Level.SEVERE, "Failed to load playlist properties", e);
+                    LOG.log(Level.SEVERE, "Failed to load YouTube playlist properties: " + v, e);
+                    saveOnExit = false;
                 }
             });
         } catch (Exception ex) {
             LOG.log(Level.SEVERE, "Failed to load initial playlist properties", ex);
             ex.printStackTrace();
+            saveOnExit = false;
         }
     }
 
     @PreDestroy
     public void shutdown() {
-        try {
-            Properties p = new Properties();
-            playlists.forEach(syncdPlaylist -> {
-                p.setProperty(syncdPlaylist.getSpotifyPlaylist().getId(), syncdPlaylist.getYtmusicPlaylist().getId());
-            });
-            p.store(new FileOutputStream(
-                new File(APP_ROOT_DIRECTORY, "ytmusicapi/syncdPlaylists.properties")), "");
-        } catch (Exception ex) {
-            LOG.severe("Failed to load initial playlist properties");
+        if (saveOnExit) {
+            try {
+                Properties p = new Properties();
+                playlists.forEach(syncdPlaylist -> {
+                    p.setProperty(syncdPlaylist.getSpotifyPlaylist().getId(),
+                            syncdPlaylist.getYtmusicPlaylist().getId());
+                });
+                p.store(new FileOutputStream(
+                        new File(APP_ROOT_DIRECTORY, "ytmusicapi/syncdPlaylists.properties")), "");
+            } catch (Exception ex) {
+                LOG.severe("Failed to load initial playlist properties");
+            }
         }
     }
 
@@ -97,8 +110,10 @@ public class PlaylistSyncResource {
     @GET
     @Produces("text/html")
     @Path("/songs/{spotifyPlayListId}")
-    public String getSongsFromSpotifyPlaylist(@PathParam("spotifyPlayListId") String spotifyListId) {
+    public String getSongsFromSpotifyPlaylist(@PathParam("spotifyPlayListId") String spotifyListId,
+            @QueryParam("sep") @DefaultValue(" // ") String sep) {
         Playlist spotifyPlaylist = SpotifyUtils.getPlaylistSync(spotifyListId);
+        spotifyPlaylist.setTitleArtistSeparator(sep);
         return "<html><p>" + spotifyPlaylist.getSongs().stream().map(Song::toString).collect(Collectors.joining ("<br>")) + "</p></html>";
     }
 

@@ -41,6 +41,10 @@ public class Playlist {
         this.songs = songs;
     }
 
+    public void setTitleArtistSeparator(String sep) {
+        songs.forEach(s -> s.setSeparator(sep));
+    }
+
     public String toText() {
         return toText(true);
     }

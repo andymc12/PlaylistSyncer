@@ -36,11 +36,13 @@ public class YTMusicUtils {
     public static Playlist getPlaylist(String playlistId, int numRetries) {
         RuntimeException initialException = null;
         for (int i=0; i<numRetries; i++) {
+            List<String> lines = new ArrayList<>();
             try {
-                List<String> lines = runScript("getPlaylist.py", playlistId);
+                lines.addAll(runScript("getPlaylist.py", playlistId));
                 LOG.finest(() -> lines.stream().collect(Collectors.joining(System.lineSeparator())));
                 return playlistFromText(lines);
             } catch (RuntimeException re) {
+                System.out.println(lines);
                 if (initialException == null) {
                     initialException = re;
                 }
@@ -152,9 +154,10 @@ public class YTMusicUtils {
     }
 
     static List<String> runScript(String scriptName, String... params) {
-        LOG.info("runScript " + scriptName + " " + Arrays.asList(params));
+        LOG.info("runScript python3 " + scriptName + " " + Arrays.asList(params).stream().map(s -> "\"" + s + "\" ").collect(Collectors.toList()));
         try {
             List<String> lines = new ArrayList<>();
+            List<String> errorLines = new ArrayList<>();
             ProcessBuilder builder = new ProcessBuilder();
             List<String> executable = new ArrayList<>();
             executable.add(pythonLocation());
@@ -165,12 +168,13 @@ public class YTMusicUtils {
             builder.command(executable);
             builder.directory(new File(appDirectory("ytmusicapi")));
             Process process = builder.start();
-            StreamGobbler streamGobbler = new StreamGobbler(process.getInputStream(), lines::add);
+            StreamGobbler streamGobbler = new StreamGobbler(lines::add, process.getInputStream(), errorLines::add, process.getErrorStream());
             executor.submit(streamGobbler);
             int exitCode = process.waitFor();
             if (exitCode != 0) {
                 System.out.println("Error running script (" + scriptName + "):");
                 lines.forEach(System.out::println);
+                errorLines.forEach(System.err::println);
                 throw new InternalServerErrorException();
             }
             return lines;
@@ -190,17 +194,23 @@ public class YTMusicUtils {
         return SpotifyplaylistRestApplication.APP_ROOT_DIRECTORY + dir;
     }
     private static class StreamGobbler implements Runnable {
-        private InputStream inputStream;
-        private Consumer<String> consumer;
+        private InputStream inputStream1;
+        private Consumer<String> consumer1;
+        private InputStream inputStream2;
+        private Consumer<String> consumer2;
 
-        public StreamGobbler(InputStream inputStream, Consumer<String> consumer) {
-            this.inputStream = inputStream;
-            this.consumer = consumer;
+        public StreamGobbler(Consumer<String> consumer1, InputStream inputStream1,
+                             Consumer<String> consumer2, InputStream inputStream2) {
+            this.inputStream1 = inputStream1;
+            this.consumer1 = consumer1;
+            this.inputStream2 = inputStream2;
+            this.consumer2 = consumer2;
         }
 
         @Override
         public void run() {
-            new BufferedReader(new InputStreamReader(inputStream)).lines().forEach(consumer);
+            new BufferedReader(new InputStreamReader(inputStream1)).lines().forEach(consumer1);
+            new BufferedReader(new InputStreamReader(inputStream2)).lines().forEach(consumer2);
         }
     }
 }
